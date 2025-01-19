@@ -12,6 +12,7 @@ import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
 import net.sebastian.oneblock.OneBlockMod;
+import net.sebastian.oneblock.block.custom.OneBlock;
 import net.sebastian.oneblock.item.ModItems;
 
 import java.util.function.Supplier;
@@ -22,7 +23,7 @@ public class ModBlocks {
 
 
     public static final RegistryObject<Block> ONE_BLOCK = registerBlock("one_block",
-            () -> new Block(BlockBehaviour.Properties.copy(Blocks.DIRT).sound(SoundType.AMETHYST)));
+            OneBlock::new);
 
 
 
