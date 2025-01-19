@@ -1,6 +1,5 @@
 package net.sebastian.oneblock.block.custom;
 
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -13,8 +12,8 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.phys.shapes.CollisionContext;
-import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 import java.util.List;
 
@@ -22,6 +21,7 @@ public class OneBlock extends Block {
 
     public static final BooleanProperty ACTIVE = BooleanProperty.create("active");
     private static int blocksMined = 0; // Zählt die abgebauten Blöcke
+    private static int teleprt = 0;
 
     public OneBlock() {
         super(Properties.copy(Blocks.STONE)
@@ -29,6 +29,15 @@ public class OneBlock extends Block {
                 .noCollission()
                 .strength(3.0F));
         this.registerDefaultState(this.stateDefinition.any().setValue(ACTIVE, true));
+    }
+
+    public static void teleport(ServerLevel world, BlockPos pos) {
+        if(teleprt >= 1) {
+            teleportItems(world, pos);
+            teleprt -= 1;
+            world.players().forEach(player ->
+                    player.sendSystemMessage(Component.literal("TP COunter: " + teleprt)));
+        }
     }
 
     @Override
@@ -39,8 +48,16 @@ public class OneBlock extends Block {
     @Override
     public void onPlace(BlockState state, Level world, BlockPos pos, BlockState oldState, boolean isMoving) {
         super.onPlace(state, world, pos, oldState, isMoving);
-        placeGrassBlock((ServerLevel) world, pos.below()); // Grasblock unterhalb platzieren
-        loadBlockCount((ServerLevel) world); // Lade die Anzahl der abgebauten Blöcke
+
+        // Prüfen, ob die Welt ein ServerLevel ist
+        if (world instanceof ServerLevel serverLevel) {
+            teleprt = 20;
+            placeGrassBlock(serverLevel, pos.below()); // Grasblock unterhalb platzieren
+            loadBlockCount(serverLevel); // Anzahl der abgebauten Blöcke laden
+            teleportItems(serverLevel,pos);
+            // Jeden Block um 5 Ticks verzögert die Funktion zum Teleportieren von Items planen
+            serverLevel.scheduleTick(pos, this, 5); // Aufruf alle 5 Ticks
+        }
     }
 
     @Override
@@ -58,6 +75,7 @@ public class OneBlock extends Block {
     private void placeGrassBlock(ServerLevel world, BlockPos pos) {
         if (world.isEmptyBlock(pos)) {
             world.setBlockAndUpdate(pos, Blocks.GRASS_BLOCK.defaultBlockState());
+            teleportItems(world, pos);
         }
     }
 
@@ -83,42 +101,38 @@ public class OneBlock extends Block {
         }
     }
 
-    // Diese Methode speichert die Anzahl der abgebauten Blöcke in den Welt-Daten
     private static void saveBlockCount(ServerLevel world) {
-        CompoundTag tag = world.getDataStorage().get(OneBlockData.KEY, world);
-        tag.putInt("blocksMined", blocksMined);
-        world.getDataStorage().set(OneBlockData.KEY, tag, world);
+        OneBlockSavedData data = OneBlockData.loadOrCreateData(world);
+        data.saveincrementBlocksMined(); // BlocksMined aktualisieren
     }
 
-    // Diese Methode lädt die Anzahl der abgebauten Blöcke aus den Welt-Daten
     private static void loadBlockCount(ServerLevel world) {
-        CompoundTag tag = world.getDataStorage().get(OneBlockData.KEY, world);
-        if (tag != null) {
-            blocksMined = tag.getInt("blocksMined");
-        }
+        OneBlockSavedData data = OneBlockData.loadOrCreateData(world);
+        blocksMined = data.getBlocksMined(); // BlocksMined laden
     }
 
-    // Diese Methode wird aufgerufen, um alle Items in der Nähe des OneBlock zu teleportieren
     public static void teleportItems(ServerLevel world, BlockPos pos) {
-        // Vergrößere den Bereich, um sicherzustellen, dass alle nahegelegenen Items erfasst werden
+        // Definiere einen Bereich um den Block
         List<ItemEntity> nearbyItems = world.getEntitiesOfClass(ItemEntity.class,
                 new net.minecraft.world.phys.AABB(pos.offset(-10, -10, -10), pos.offset(10, 10, 10)));
 
-        // Überprüfe jedes Item und teleportiere es
+        // Teleportiere jedes Item
         for (ItemEntity item : nearbyItems) {
-            if (item != null && !item.isRemoved()) {  // Sicherstellen, dass das Item nicht entfernt wurde
-                // Ausgabe in die Konsole zur Überprüfung
-                System.out.println("Teleportiere Item: " + item);
-
-                // Teleportiere das Item zu einer Position unterhalb des OneBlocks
-                item.setPos(pos.getX(), pos.getY() - 1, pos.getZ()); // Y - 1 stellt sicher, dass es unter dem Block landet
+            if (item != null && !item.isRemoved()) {
+                BlockPos itemPos = item.blockPosition();
+                if (!itemPos.equals(pos.below())) { // Nur teleportieren, wenn das Item nicht schon unter dem OneBlock ist
+                    item.setPos(pos.getX() + 0.5, pos.getY() + 1.5, pos.getZ() + 0.5);
+                }
             }
         }
     }
 
-    // Diese Methode wird aufgerufen, um Items regelmäßig zu teleportieren (jeder Tick)
-    public static void tick(ServerLevel world, BlockPos pos) {
-        // Überprüfe, ob Items teleportiert werden sollen, hier wird es immer ausgeführt
+    // Diese Methode wird nun verwendet, um alle 5 Ticks Items zu teleportieren
+    public void tick(BlockState state, ServerLevel world, BlockPos pos, java.util.Random random) {
+        // Items teleportieren
         teleportItems(world, pos);
+
+        // Setze den Block-Tick-Planer, um alle 5 Ticks zu wiederholen
+        world.scheduleTick(pos, this, 5); // Wiederhole alle 5 Ticks
     }
 }

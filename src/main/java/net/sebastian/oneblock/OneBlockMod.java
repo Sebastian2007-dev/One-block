@@ -2,10 +2,13 @@ package net.sebastian.oneblock;
 
 import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.Level;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -14,6 +17,8 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.sebastian.oneblock.block.ModBlocks;
+import net.sebastian.oneblock.block.custom.OneBlockData;
+import net.sebastian.oneblock.block.custom.OneBlockSavedData;
 import net.sebastian.oneblock.item.ModCreativeModeTabs;
 import net.sebastian.oneblock.item.ModItems;
 import org.slf4j.Logger;
@@ -23,16 +28,22 @@ import org.slf4j.Logger;
 public class OneBlockMod
 {
     public static final String MODID = "oneblock";
-    // Directly reference a slf4j logger
+
     private static final Logger LOGGER = LogUtils.getLogger();
 
-        public OneBlockMod(FMLJavaModLoadingContext context)
+    public OneBlockMod(FMLJavaModLoadingContext context)
     {
         IEventBus modEventBus = context.getModEventBus();
 
         ModCreativeModeTabs.register(modEventBus);
         ModItems.register(modEventBus);
         ModBlocks.register(modEventBus);
+
+        modEventBus.addListener(this::commonSetup);
+
+        // Registriert den Client-Setup Event auf dem modEventBus
+        IEventBus eventBus = MinecraftForge.EVENT_BUS;
+        eventBus.addListener(this::clientSetup);
 
         modEventBus.addListener(this::commonSetup);
 
@@ -52,24 +63,26 @@ public class OneBlockMod
     {
     }
 
-
+    private void clientSetup(final FMLClientSetupEvent event) {
+        // Client Setup
+    }
 
     // You can use SubscribeEvent and let the Event Bus discover methods to call
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event)
     {
+        // Hier kannst du Code hinzufügen, wenn der Server startet
     }
 
-    // You can use EventBusSubscriber to automatically register all static methods in the class annotated with @SubscribeEvent
-    @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
-    public static class ClientModEvents
+    // Registriere den ServerStoppingEvent auf dem richtigen EventBus
+    @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
+    public static class ModEvents
     {
         @SubscribeEvent
-        public static void onClientSetup(FMLClientSetupEvent event)
-        {
-            // Some client setup code
-            LOGGER.info("HELLO FROM CLIENT SETUP");
-            LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
+        public static void onServerStopping(ServerStoppingEvent event) {
+            ServerLevel serverLevel = event.getServer().getLevel(Level.OVERWORLD);
+            OneBlockSavedData data = OneBlockData.loadOrCreateData(serverLevel);
+            data.saveincrementBlocksMined(); // Speichere die Änderungen
         }
     }
 }

@@ -8,7 +8,13 @@ public class OneBlockSavedData extends SavedData {
     private int blocksMined;
 
     public OneBlockSavedData() {
-        this.blocksMined = 0;  // Initialwert
+        this.blocksMined = 0; // Standardwert
+    }
+
+    public static OneBlockSavedData load(CompoundTag tag) {
+        OneBlockSavedData data = new OneBlockSavedData();
+        data.blocksMined = tag.getInt(BLOCKS_MINED_KEY);
+        return data;
     }
 
     @Override
@@ -17,13 +23,9 @@ public class OneBlockSavedData extends SavedData {
         return tag;
     }
 
-    @Override
-    public void load(CompoundTag tag) {
-        this.blocksMined = tag.getInt(BLOCKS_MINED_KEY);
-    }
-
-    public void incrementBlocksMined() {
+    public void saveincrementBlocksMined() {
         blocksMined++;
+        setDirty(); // Markiere die Daten als geändert
     }
 
     public int getBlocksMined() {
